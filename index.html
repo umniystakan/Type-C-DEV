@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Type-C - Современный мессенджер на базе протокола Matrix с темной темой">
+    <meta name="keywords" content="messenger, matrix, chat, encryption, secure messaging">
+    <title>Type-C Messenger</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Matrix E2EE (Olm) -->
+    <script src="https://cdn.jsdelivr.net/npm/@matrix-org/olm/olm.js"></script>
+
+    <!-- Matrix SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/matrix-js-sdk/dist/browser-matrix.min.js"></script>
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="styles.css">
+
+    <!-- Early Theme Loader -->
+    <script>
+        (function () {
+            const savedTheme = localStorage.getItem('matrix_theme') || 'green';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            // Apply to body as soon as it's available
+            document.addEventListener('DOMContentLoaded', () => {
+                document.body.setAttribute('data-theme', savedTheme);
+            });
+        })();
+    </script>
+</head>
+
+<body>
+    <!-- Global Visual Effects Overlay -->
+    <div class="global-visual-effects"></div>
+
+    <!-- Notifications Container -->
+    <div id="notification-container" class="notification-container"></div>
+
+    <!-- Login Screen -->
+    <div id="login-screen" class="screen active">
+        <div class="login-container">
+            <div class="logo-section">
+                <div class="logo">
+                    <svg width="60" height="60" viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M30 5L55 17.5V42.5L30 55L5 42.5V17.5L30 5Z" stroke="url(#logo-gradient)"
+                            stroke-width="3" fill="none" />
+                        <circle cx="30" cy="30" r="8" fill="url(#logo-gradient)" />
+                        <defs>
+                            <linearGradient id="logo-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" class="stop-1" />
+                                <stop offset="100%" class="stop-2" />
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                </div>
+                <h1>Type-C</h1>
+                <p class="tagline">Защищённый мессенджер на Matrix</p>
+            </div>
+
+            <div class="auth-tabs">
+                <button type="button" class="auth-tab active" data-tab="login">Вход</button>
+                <button type="button" class="auth-tab" data-tab="register">Регистрация</button>
+            </div>
+
+            <form id="auth-form" class="login-form">
+                <!-- Homeserver is hardcoded to https://type-c-kmr.duckdns.org/ -->
+
+                <div class="form-group">
+                    <label for="username">Имя пользователя</label>
+                    <input type="text" id="username" placeholder="@user:type-c-kmr.duckdns.org" required
+                        autocomplete="username">
+                </div>
+
+                <div class="form-group">
+                    <label for="password">Пароль</label>
+                    <input type="password" id="password" placeholder="Введите пароль" required
+                        autocomplete="current-password">
+                </div>
+
+                <div class="form-group hidden" id="confirm-password-group">
+                    <label for="confirm-password">Подтвердите пароль</label>
+                    <input type="password" id="confirm-password" placeholder="Повторите пароль"
+                        autocomplete="new-password">
+                </div>
+
+                <div class="form-group hidden" id="email-group">
+                    <label for="email">Email (необязательно)</label>
+                    <input type="email" id="email" placeholder="email@example.com" autocomplete="email">
+                </div>
+
+                <button type="submit" class="btn-primary" id="auth-btn">
+                    <span>Войти</span>
+                </button>
+
+                <div id="auth-error" class="error-message"></div>
+
+                <div class="server-info">
+                    <p>Сервер: <span class="server-badge">type-c-kmr.duckdns.org</span></p>
+                </div>
+            </form>
+
+        </div>
+    </div>
+
+    <!-- Main Chat Screen -->
+    <div id="chat-screen" class="screen">
+        <div class="chat-container">
+            <!-- Sidebar -->
+            <aside class="sidebar">
+                <div class="sidebar-header">
+                    <div class="user-profile">
+                        <div class="avatar" id="user-avatar">
+                            <div class="status-indicator online"></div>
+                        </div>
+                        <div class="user-info">
+                            <h3 id="user-display-name">Loading...</h3>
+                            <p id="user-id">@user:matrix.org</p>
+                        </div>
+                    </div>
+                    <div class="sidebar-actions">
+                        <button class="btn-icon" id="profile-btn" title="Профиль">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                                <circle cx="12" cy="7" r="4" />
+                            </svg>
+                        </button>
+                        <button class="btn-icon" id="logout-btn" title="Выйти">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                                <polyline points="16 17 21 12 16 7" />
+                                <line x1="21" y1="12" x2="9" y2="12" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Tabs -->
+                <div class="tabs">
+                    <button class="tab-btn active" data-tab="dms" id="tab-dms">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                        </svg>
+                        <span>Личные сообщения</span>
+                    </button>
+                    <button class="tab-btn" data-tab="rooms" id="tab-rooms">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <rect x="3" y="3" width="7" height="7" />
+                            <rect x="14" y="3" width="7" height="7" />
+                            <rect x="14" y="14" width="7" height="7" />
+                            <rect x="3" y="14" width="7" height="7" />
+                        </svg>
+                        <span>Комнаты</span>
+                    </button>
+                    <button class="tab-btn" data-tab="invites" id="tab-invites">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="8.5" cy="7" r="4"></circle>
+                            <line x1="20" y1="8" x2="20" y2="14"></line>
+                            <line x1="23" y1="11" x2="17" y2="11"></line>
+                        </svg>
+                        <span>Приглашения</span>
+                    </button>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="action-buttons">
+                    <button class="btn-action" id="new-dm-btn">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <line x1="12" y1="5" x2="12" y2="19" />
+                            <line x1="5" y1="12" x2="19" y2="12" />
+                        </svg>
+                        <span>Новое ЛС</span>
+                    </button>
+                    <button class="btn-action" id="create-room-btn" style="display:none;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <line x1="12" y1="5" x2="12" y2="19" />
+                            <line x1="5" y1="12" x2="19" y2="12" />
+                        </svg>
+                        <span>Создать комнату</span>
+                    </button>
+                </div>
+
+                <div class="rooms-list" id="rooms-list">
+                    <div class="loading-rooms">
+                        <div class="spinner"></div>
+                        <p>Загрузка...</p>
+                    </div>
+                </div>
+
+                <div class="rooms-list hidden" id="invites-list">
+                    <!-- Invites will be loaded here -->
+                    <div class="empty-state">Нет приглашений</div>
+                </div>
+            </aside>
+
+            <!-- Main Chat Area -->
+            <main class="chat-main">
+                <div class="chat-header" id="chat-header">
+                    <div class="room-info">
+                        <button id="back-to-rooms-btn" class="btn-icon mobile-only"
+                            style="display: none; margin-right: 10px;">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path d="M19 12H5M12 19l-7-7 7-7" />
+                            </svg>
+                        </button>
+                        <div class="room-title-wrapper">
+                            <h2 id="current-room-name">Выберите комнату</h2>
+                            <p id="room-members-count">0 участников</p>
+                        </div>
+                    </div>
+                    <div class="room-actions">
+                        <button id="room-settings-btn" class="btn-icon" title="Настройки" style="display: none;">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <circle cx="12" cy="12" r="3"></circle>
+                                <path
+                                    d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
+                                </path>
+                            </svg>
+                        </button>
+
+                        <div id="room-settings-menu" class="settings-dropdown hidden">
+                            <button id="invite-user-btn" class="dropdown-item">Пригласить участника</button>
+                            <button id="view-members-btn" class="dropdown-item">Участники</button>
+                            <button id="leave-room-btn" class="dropdown-item text-danger">Выйти (Покинуть)</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="messages-container" id="messages-container">
+                    <div class="welcome-message">
+                        <svg width="80" height="80" viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M30 5L55 17.5V42.5L30 55L5 42.5V17.5L30 5Z" stroke="url(#logo-gradient)"
+                                stroke-width="2" fill="none" />
+                            <circle cx="30" cy="30" r="8" fill="url(#logo-gradient)" />
+                            <defs>
+                                <linearGradient id="logo-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                    <stop offset="0%" class="stop-1" />
+                                    <stop offset="100%" class="stop-2" />
+                                </linearGradient>
+                            </defs>
+                        </svg>
+                        <h3>Добро пожаловать в Type-C</h3>
+                        <p>Выберите комнату слева, чтобы начать общение</p>
+                    </div>
+                </div>
+
+                <div class="message-input-container" id="message-input-container">
+                    <form id="message-form" class="message-form">
+                        <div class="message-input-wrapper">
+                            <input type="file" id="file-input" hidden>
+                            <button type="button" class="btn-icon" id="attach-btn" disabled title="Прикрепить файл">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2">
+                                    <path
+                                        d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48">
+                                    </path>
+                                </svg>
+                            </button>
+                            <input type="text" id="message-input" placeholder="Введите сообщение..." disabled>
+                            <button type="submit" class="btn-send" id="send-btn" disabled>
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2">
+                                    <line x1="22" y1="2" x2="11" y2="13" />
+                                    <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                                </svg>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </main>
+        </div>
+
+        <!-- Modals -->
+        <!-- New DM Modal -->
+        <div class="modal" id="new-dm-modal">
+            <div class="modal-overlay"></div>
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Новое личное сообщение</h3>
+                    <button class="modal-close" data-modal="new-dm-modal">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18" />
+                            <line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="user-search-input">Поиск пользователя</label>
+                        <input type="text" id="user-search-input" placeholder="Введите имя или @user:server.org">
+                    </div>
+                    <div class="search-results" id="user-search-results">
+                        <p class="search-hint">Начните вводить для поиска пользователей</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Create Room Modal -->
+        <div class="modal" id="create-room-modal">
+            <div class="modal-overlay"></div>
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Создать комнату</h3>
+                    <button class="modal-close" data-modal="create-room-modal">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18" />
+                            <line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <form id="create-room-form">
+                        <div class="form-group">
+                            <label for="room-name">Название комнаты *</label>
+                            <input type="text" id="room-name" placeholder="Например: Общий чат" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="room-topic">Тема (опционально)</label>
+                            <input type="text" id="room-topic" placeholder="О чем эта комната?">
+                        </div>
+                        <div class="form-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="room-public">
+                                <span>Публичная комната (доступна для поиска)</span>
+                            </label>
+                        </div>
+                        <button type="submit" class="btn-primary">Создать комнату</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+
+    </div>
+
+    <!-- App Script -->
+    <!-- Profile Modal -->
+    <div id="profile-modal" class="modal">
+        <div class="modal-content profile-settings">
+            <div class="modal-header">
+                <h2>Настройки профиля</h2>
+                <button class="btn-close" id="close-profile-modal">&times;</button>
+            </div>
+            <div class="profile-avatar-setup">
+                <div class="avatar-large" id="profile-avatar-preview">
+                    <!-- Avatar image or initials -->
+                </div>
+                <input type="file" id="avatar-upload" hidden accept="image/*">
+                <button class="btn-secondary btn-sm" onclick="document.getElementById('avatar-upload').click()">
+                    Изменить фото
+                </button>
+            </div>
+            <div class="form-group">
+                <label for="profile-display-name">Отображаемое имя</label>
+                <input type="text" id="profile-display-name" placeholder="Введите ваше имя">
+            </div>
+            <div class="form-group">
+                <label>Тема оформления</label>
+                <div class="theme-picker">
+                    <div class="theme-swatch theme-green active" data-theme="green" title="Зеленый"></div>
+                    <div class="theme-swatch theme-blue" data-theme="blue" title="Голубой"></div>
+                    <div class="theme-swatch theme-yellow" data-theme="yellow" title="Желтый"></div>
+                    <div class="theme-swatch theme-red" data-theme="red" title="Красный"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-primary" id="save-profile-btn">Сохранить</button>
+            </div>
+        </div>
+        <div class="modal-overlay" data-modal="profile-modal"></div>
+    </div>
+
+    <!-- Invite User Modal -->
+    <div class="modal" id="invite-user-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Пригласить участника</h3>
+                <button class="modal-close" data-modal="invite-user-modal">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="invite-user-form">
+                    <div class="form-group">
+                        <label for="invite-username">Имя пользователя</label>
+                        <input type="text" id="invite-username" placeholder="@user:server" required>
+                        <p class="form-hint">Например: @ivan:type-c-kmr.duckdns.org</p>
+                    </div>
+                    <button type="submit" class="btn-primary">Пригласить</button>
+                </form>
+            </div>
+        </div>
+        <div class="modal-overlay" data-modal="invite-user-modal"></div>
+    </div>
+
+    <script src="app.js?v=190"></script>
+</body>
+
+</html>
