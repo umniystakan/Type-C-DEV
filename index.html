@@ -1,0 +1,1272 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#000000">
+    <meta charset="UTF-8">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="description" content="Type-C - Современный мессенджер на базе протокола Matrix">
+    <meta name="keywords" content="messenger, matrix, chat, encryption, secure messaging">
+    <title>Type-C Messenger</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@300;400;600;800;900&family=JetBrains+Mono:wght@400;700&display=swap"
+        rel="stylesheet">
+
+    <!-- Matrix E2EE (Olm) -->
+    <script src="https://cdn.jsdelivr.net/npm/@matrix-org/olm/olm.js"></script>
+
+    <!-- Matrix SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/matrix-js-sdk/dist/browser-matrix.min.js"></script>
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="styles.css?v=2806">
+
+    <!-- Early Theme Loader -->
+    <script>
+        (function () {
+            const savedTheme = localStorage.getItem('matrix_theme') || 'green';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            // Apply to body as soon as it's available
+            document.addEventListener('DOMContentLoaded', () => {
+                document.body.setAttribute('data-theme', savedTheme);
+            });
+        })();
+    </script>
+</head>
+
+<body>
+    <!-- Global Visual Effects Overlay -->
+    <div class="global-visual-effects">
+        <canvas id="matrix-rain"></canvas>
+        <div class="cyber-grid"></div>
+        <div class="scanlines"></div>
+        <div class="glass-blobs">
+            <div class="blob blob-1"></div>
+            <div class="blob blob-2"></div>
+            <div class="blob blob-3"></div>
+        </div>
+        <!-- Cyber-Organic Holographic Gradient -->
+        <svg width="0" height="0" style="position:absolute;">
+            <defs>
+                <linearGradient id="holographic-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:var(--color-accent-green)" />
+                    <stop offset="50%" style="stop-color:var(--color-accent-blue)" />
+                    <stop offset="100%" style="stop-color:var(--color-accent-pink)" />
+                </linearGradient>
+            </defs>
+        </svg>
+
+        <!-- Liquid Gooey Filter -->
+        <svg xmlns="http://www.w3.org/2000/svg" version="1.1" style="display:none;">
+            <defs>
+                <filter id="goo">
+                    <feGaussianBlur in="SourceGraphic" stdDeviation="40" result="blur" />
+                    <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 60 -25"
+                        result="goo" />
+                    <feComposite in="SourceGraphic" in2="goo" operator="atop" />
+                </filter>
+            </defs>
+        </svg>
+    </div>
+
+    <!-- Room Members Modal -->
+    <div id="members-modal" class="modal">
+        <div class="modal-content members-modal-content">
+            <div class="modal-header">
+                <h3>Участники комнаты</h3>
+                <button class="modal-close" id="close-members-modal" data-modal="members-modal">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="members-search">
+                    <input type="text" id="member-search-input" placeholder="Поиск участников...">
+                </div>
+                <div id="members-list-container" class="members-list">
+                    <!-- Members will be loaded here -->
+                </div>
+            </div>
+        </div>
+        <div class="modal-overlay" data-modal="members-modal"></div>
+    </div>
+
+    <!-- Notifications Container -->
+    <div id="notification-container" class="notification-container"></div>
+
+    <!-- Login Screen -->
+    <div id="login-screen" class="screen active">
+        <div class="login-container">
+            <div class="logo-section">
+                <div class="logo">
+                    <svg width="60" height="60" viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M30 5L55 17.5V42.5L30 55L5 42.5V17.5L30 5Z" stroke="url(#logo-gradient)"
+                            stroke-width="3" fill="none" />
+                        <circle cx="30" cy="30" r="8" fill="url(#logo-gradient)" />
+                        <defs>
+                            <linearGradient id="logo-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" class="stop-1" />
+                                <stop offset="100%" class="stop-2" />
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                </div>
+                <h1>Type-C</h1>
+                <p class="tagline">Защищённый мессенджер на Matrix</p>
+            </div>
+
+            <div class="auth-tabs">
+                <button type="button" class="auth-tab active" data-tab="login">Вход</button>
+                <button type="button" class="auth-tab" data-tab="register">Регистрация</button>
+            </div>
+
+            <form id="auth-form" class="login-form">
+                <!-- Homeserver is hardcoded to https://type-c-kmr.duckdns.org/ -->
+
+                <div class="form-group">
+                    <label for="username">Имя пользователя</label>
+                    <input type="text" id="username" placeholder="@user:type-c-kmr.duckdns.org" required
+                        autocomplete="username">
+                </div>
+
+                <div class="form-group">
+                    <label for="password">Пароль</label>
+                    <input type="password" id="password" placeholder="Введите пароль" required
+                        autocomplete="current-password">
+                </div>
+
+                <div class="form-group hidden" id="confirm-password-group">
+                    <label for="confirm-password">Подтвердите пароль</label>
+                    <input type="password" id="confirm-password" placeholder="Повторите пароль"
+                        autocomplete="new-password">
+                </div>
+
+                <div class="form-group hidden" id="email-group">
+                    <label for="email">Email (необязательно)</label>
+                    <input type="email" id="email" placeholder="email@example.com" autocomplete="email">
+                </div>
+
+                <button type="submit" class="btn-primary" id="auth-btn">
+                    <span>Войти</span>
+                </button>
+
+                <div id="auth-error" class="error-message"></div>
+
+                <div class="server-info">
+                    <p>Сервер: <span class="server-badge">type-c-kmr.duckdns.org</span></p>
+                </div>
+            </form>
+
+        </div>
+    </div>
+
+    <!-- Main Chat Screen -->
+    <div id="chat-screen" class="screen">
+        <div class="chat-container">
+            <!-- Sidebar -->
+            <aside class="sidebar">
+                <div class="sidebar-header-wrapper">
+                    <div id="connection-status" class="connection-status connecting">
+                        <span class="status-dot"></span>
+                        <span class="status-text">Синхронизация...</span>
+                    </div>
+                    <div class="sidebar-header">
+                        <div class="user-profile">
+                            <div class="avatar" id="user-avatar">
+                                <div class="status-indicator online"></div>
+                            </div>
+                            <div class="user-info">
+                                <h3 id="user-display-name">Loading...</h3>
+                                <p id="user-id">@user:matrix.org</p>
+                            </div>
+                        </div>
+                        <div class="sidebar-actions">
+                            <button class="btn-icon" id="profile-settings-btn" title="Настройки профиля">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2">
+                                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                                    <circle cx="12" cy="7" r="4"></circle>
+                                </svg>
+                            </button>
+                            <button class="btn-icon" id="logout-btn" title="Выйти">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2">
+                                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                                    <polyline points="16 17 21 12 16 7" />
+                                    <line x1="21" y1="12" x2="9" y2="12" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div> <!-- closing sidebar-header-wrapper -->
+
+                <!-- Tabs -->
+                <div class="tabs">
+                    <button class="tab-btn active" data-tab="dms" id="tab-dms">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                        </svg>
+                        <span>Личные сообщения</span>
+                    </button>
+                    <button class="tab-btn" data-tab="rooms" id="tab-rooms">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <rect x="3" y="3" width="7" height="7" />
+                            <rect x="14" y="3" width="7" height="7" />
+                            <rect x="14" y="14" width="7" height="7" />
+                            <rect x="3" y="14" width="7" height="7" />
+                        </svg>
+                        <span>Комнаты</span>
+                    </button>
+                    <button class="tab-btn" data-tab="invites" id="tab-invites">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="8.5" cy="7" r="4"></circle>
+                            <line x1="20" y1="8" x2="20" y2="14"></line>
+                            <line x1="23" y1="11" x2="17" y2="11"></line>
+                        </svg>
+                        <span>Приглашения</span>
+                    </button>
+                </div>
+
+                <!-- Room Search -->
+                <div class="sidebar-search-container">
+                    <div class="search-input-wrapper">
+                        <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="8"></circle>
+                            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                        </svg>
+                        <input type="text" id="room-search-input" placeholder="Поиск чатов...">
+                        <button id="clear-search-btn" class="clear-btn hidden">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <line x1="18" y1="6" x2="6" y2="18"></line>
+                                <line x1="6" y1="6" x2="18" y2="18"></line>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Action Buttons Header -->
+                <div class="sidebar-section-header" id="toggle-actions-btn">
+                    <span>Действия</span>
+                    <svg class="chevron-icon" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2">
+                        <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="action-buttons" id="action-buttons-container">
+                    <button class="btn-action" id="new-dm-btn">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <line x1="12" y1="5" x2="12" y2="19" />
+                            <line x1="5" y1="12" x2="19" y2="12" />
+                        </svg>
+                        <span>Новое ЛС</span>
+                    </button>
+                    <button class="btn-action" id="new-encrypted-dm-btn">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                        </svg>
+                        <span>Защищенное ЛС (E2EE)</span>
+                    </button>
+                    <button class="btn-action" id="create-room-btn" style="display:none;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <line x1="12" y1="5" x2="12" y2="19" />
+                            <line x1="5" y1="12" x2="19" y2="12" />
+                        </svg>
+                        <span>Создать комнату</span>
+                    </button>
+                    <button class="btn-action" id="explore-rooms-btn">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <circle cx="11" cy="11" r="8"></circle>
+                            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                        </svg>
+                        <span>Обзор комнат</span>
+                    </button>
+                    <button class="btn-action" id="sidebar-summary-btn">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                            <line x1="16" y1="13" x2="8" y2="13"></line>
+                            <line x1="16" y1="17" x2="8" y2="17"></line>
+                            <polyline points="10 9 9 9 8 9"></polyline>
+                        </svg>
+                        <span>Сводка</span>
+                    </button>
+                    <button class="btn-action" id="sidebar-settings-btn">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <circle cx="12" cy="12" r="3"></circle>
+                            <path
+                                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
+                            </path>
+                        </svg>
+                        <span>Настройки приложения</span>
+                    </button>
+                </div>
+
+                <div class="rooms-list" id="rooms-list">
+                    <div class="loading-rooms">
+                        <div class="spinner"></div>
+                        <p>Загрузка...</p>
+                    </div>
+                </div>
+
+                <div class="rooms-list hidden" id="invites-list">
+                    <!-- Invites will be loaded here -->
+                    <div class="empty-state">Нет приглашений</div>
+                </div>
+            </aside>
+
+            <!-- Main Chat Area -->
+            <main class="chat-main">
+                <div class="chat-header" id="chat-header">
+                    <div class="room-info">
+                        <button id="back-to-rooms-btn" class="btn-icon mobile-only"
+                            style="display: none; margin-right: 10px;">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path d="M19 12H5M12 19l-7-7 7-7" />
+                            </svg>
+                        </button>
+                        <div class="room-title-wrapper">
+                            <h2 id="current-room-name">Выберите комнату</h2>
+                            <p id="room-members-count">0 участников</p>
+                        </div>
+                    </div>
+                    <div class="room-actions">
+                        <button id="header-summary-btn" class="btn-icon mobile-only-inline" title="Сводка">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                <polyline points="14 2 14 8 20 8"></polyline>
+                                <line x1="16" y1="13" x2="8" y2="13"></line>
+                                <line x1="16" y1="17" x2="8" y2="17"></line>
+                                <polyline points="10 9 9 9 8 9"></polyline>
+                            </svg>
+                        </button>
+                        <button id="room-settings-btn" class="btn-icon" title="Настройки" style="display: none;">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <circle cx="12" cy="12" r="3"></circle>
+                                <path
+                                    d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
+                                </path>
+                            </svg>
+                        </button>
+
+                        <div id="room-settings-menu" class="settings-dropdown hidden">
+                            <button id="invite-user-btn" class="dropdown-item">Пригласить участника</button>
+                            <button id="view-members-btn" class="dropdown-item">Участники</button>
+                            <button id="leave-room-btn" class="dropdown-item text-danger">Выйти (Покинуть)</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="messages-container" id="messages-container">
+                    <div class="welcome-message">
+                        <svg width="80" height="80" viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M30 5L55 17.5V42.5L30 55L5 42.5V17.5L30 5Z" stroke="url(#logo-gradient)"
+                                stroke-width="2" fill="none" />
+                            <circle cx="30" cy="30" r="8" fill="url(#logo-gradient)" />
+                            <defs>
+                                <linearGradient id="logo-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                    <stop offset="0%" class="stop-1" />
+                                    <stop offset="100%" class="stop-2" />
+                                </linearGradient>
+                            </defs>
+                        </svg>
+                        <h3>Добро пожаловать в Type-C</h3>
+                        <p>Выберите комнату слева, чтобы начать общение</p>
+                    </div>
+                </div>
+
+                <div class="message-input-container" id="message-input-container">
+                    <form id="message-form" class="message-form">
+                        <div class="message-input-wrapper">
+                            <input type="file" id="file-input" hidden>
+                            <button type="button" class="btn-icon" id="attach-btn" disabled title="Прикрепить файл">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2">
+                                    <path
+                                        d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48">
+                                    </path>
+                                </svg>
+                            </button>
+                            <input type="text" id="message-input" placeholder="Введите сообщение..." disabled>
+                            <button type="submit" class="btn-send" id="send-btn" disabled>
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2">
+                                    <line x1="22" y1="2" x2="11" y2="13" />
+                                    <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                                </svg>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </main>
+        </div>
+
+        <!-- Mobile Bottom Navigation -->
+        <nav class="mobile-nav">
+            <button class="nav-item active" data-tab="dms">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                </svg>
+                <span>Чаты</span>
+            </button>
+            <button class="nav-item" data-tab="rooms">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="7" height="7" />
+                    <rect x="14" y="3" width="7" height="7" />
+                    <rect x="14" y="14" width="7" height="7" />
+                    <rect x="3" y="14" width="7" height="7" />
+                </svg>
+                <span>Комнаты</span>
+            </button>
+            <button class="nav-item" id="mobile-summary-btn">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                </svg>
+                <span>Сводка</span>
+            </button>
+            <button class="nav-item" id="mobile-settings-btn">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="3"></circle>
+                    <path
+                        d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
+                    </path>
+                </svg>
+                <span>Настройки</span>
+            </button>
+        </nav>
+
+        <!-- Modals -->
+        <!-- New DM Modal -->
+        <div class="modal" id="new-dm-modal">
+            <div class="modal-overlay"></div>
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Новое личное сообщение</h3>
+                    <button class="modal-close" data-modal="new-dm-modal">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18" />
+                            <line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="user-search-input">Поиск пользователя</label>
+                        <input type="text" id="user-search-input" placeholder="Введите имя или @user:server.org">
+                    </div>
+                    <div class="search-results" id="user-search-results">
+                        <p class="search-hint">Начните вводить для поиска пользователей</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Create Room Modal -->
+        <div class="modal" id="create-room-modal">
+            <div class="modal-overlay"></div>
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Создать комнату</h3>
+                    <button class="modal-close" data-modal="create-room-modal">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18" />
+                            <line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <form id="create-room-form">
+                        <div class="form-group">
+                            <label for="room-name">Название комнаты *</label>
+                            <input type="text" id="room-name" placeholder="Например: Общий чат" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="room-topic">Тема (опционально)</label>
+                            <input type="text" id="room-topic" placeholder="О чем эта комната?">
+                        </div>
+                        <div class="form-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="room-public">
+                                <span>Публичная комната (доступна для поиска)</span>
+                            </label>
+                        </div>
+                        <button type="submit" class="btn-primary">Создать комнату</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Public Rooms Discovery Modal -->
+        <div class="modal" id="public-rooms-modal">
+            <div class="modal-overlay"></div>
+            <div class="modal-content modal-large">
+                <div class="modal-header">
+                    <h3>Обзор публичных комнат</h3>
+                    <button class="modal-close" data-modal="public-rooms-modal">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18" />
+                            <line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="search-bar-inline">
+                        <input type="text" id="public-room-search" placeholder="Поиск по названию или теме...">
+                        <button id="refresh-public-rooms" class="btn-secondary">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path d="M23 4v6h-6"></path>
+                                <path d="M1 20v-6h6"></path>
+                                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                            </svg>
+                        </button>
+                    </div>
+                    <div id="public-rooms-results" class="discovery-results">
+                        <div class="loading-state">
+                            <div class="spinner"></div>
+                            <p>Загрузка списка комнат...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+    </div>
+
+    <!-- Mobile Full-Screen Settings Panel (mobile only) -->
+    <div id="mobile-settings-panel" class="mobile-settings-panel">
+        <div class="msp-header">
+            <button id="mobile-settings-back-btn" class="msp-back-btn">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M19 12H5M12 19l-7-7 7-7" />
+                </svg>
+            </button>
+            <h2>Настройки</h2>
+        </div>
+        <div class="msp-body">
+            <!-- Appearance -->
+            <section class="msp-section">
+                <h3 class="msp-section-title">Внешний вид</h3>
+                <div class="msp-row">
+                    <span>Цифровой дождь</span>
+                    <button id="matrix-rain-btn-mobile" class="btn-toggle active">ВКЛ</button>
+                </div>
+                <div class="msp-row">
+                    <span>Тема оформления</span>
+                </div>
+                <div class="theme-picker msp-theme-picker">
+                    <div class="theme-swatch theme-green" data-theme="green" title="Зеленый"></div>
+                    <div class="theme-swatch theme-blue" data-theme="blue" title="Голубой"></div>
+                    <div class="theme-swatch theme-yellow" data-theme="yellow" title="Желтый"></div>
+                    <div class="theme-swatch theme-red" data-theme="red" title="Красный"></div>
+                    <div class="theme-swatch theme-white" data-theme="white" title="Белый"></div>
+                    <div class="theme-swatch theme-pink" data-theme="pink" title="Розовый"></div>
+                    <div class="theme-swatch theme-purple" data-theme="purple" title="Фиолетовый"></div>
+                </div>
+            </section>
+
+            <!-- Privacy -->
+            <section class="msp-section">
+                <h3 class="msp-section-title">Приватность</h3>
+                <div class="msp-row">
+                    <span>Показывать радио в профиле</span>
+                    <div class="toggle-wrapper">
+                        <input type="checkbox" id="privacy-radio-toggle-mobile" class="toggle-checkbox" checked>
+                        <label for="privacy-radio-toggle-mobile" class="toggle-label"></label>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Mini Player -->
+            <section class="msp-section">
+                <h3 class="msp-section-title">Мини-плеер</h3>
+                <div class="msp-row">
+                    <span>Включить плавающий плеер</span>
+                    <div class="toggle-wrapper">
+                        <input type="checkbox" id="mini-player-enabled-toggle-mobile" class="toggle-checkbox" checked>
+                        <label for="mini-player-enabled-toggle-mobile" class="toggle-label"></label>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Security -->
+            <section class="msp-section">
+                <h3 class="msp-section-title">Безопасность</h3>
+                <div class="msp-row">
+                    <span>Заблокировать приложение</span>
+                    <div class="toggle-wrapper">
+                        <input type="checkbox" id="app-lock-toggle-mobile" class="toggle-checkbox">
+                        <label for="app-lock-toggle-mobile" class="toggle-label"></label>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Weather -->
+            <section class="msp-section">
+                <h3 class="msp-section-title">Погода</h3>
+                <p class="msp-hint">Погода определяется автоматически по местоположению.</p>
+                <button id="request-location-btn-mobile" class="btn-primary"
+                    style="width:100%; height:42px; font-size:14px;">
+                    <span>Запросить местоположение</span>
+                </button>
+            </section>
+
+            <!-- Radio Stations -->
+            <section class="msp-section">
+                <h3 class="msp-section-title">Радиостанции</h3>
+                <div id="radio-stations-list-mobile" class="radio-stations-list">
+                    <p class="empty-text">Станции не добавлены</p>
+                </div>
+                <div class="add-station-form">
+                    <input type="text" id="new-station-name-mobile" placeholder="Название (Radio Record)">
+                    <input type="text" id="new-station-url-mobile" placeholder="URL потока (mp3/aac)">
+                    <input type="text" id="new-station-cover-mobile" placeholder="URL обложки">
+                    <button id="add-station-btn-mobile" class="btn-primary btn-sm">Добавить станцию</button>
+                </div>
+            </section>
+
+            <!-- Force Reset -->
+            <section class="msp-section">
+                <h3 class="msp-section-title">Диагностика</h3>
+                <p class="msp-hint">Если иконка радио «зависла» и не исчезает:</p>
+                <button id="reset-radio-status-mobile" class="btn"
+                    style="width:100%; height:42px; background:#ff3e3e; color:#fff; font-size:13px; font-weight:600; border-radius:12px; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                        <path d="M3 3v5h5" />
+                    </svg>
+                    ФОРСИРОВАННЫЙ СБРОС
+                </button>
+            </section>
+        </div>
+    </div>
+
+    <!-- App Script -->
+
+    <!-- App Settings Modal (Themes, Rain, etc.) -->
+    <div id="app-settings-modal" class="modal">
+        <div class="modal-content app-settings">
+            <div class="modal-header">
+                <h2>Настройки приложения</h2>
+                <button class="modal-close" data-modal="app-settings-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Внешний вид</label>
+                    <div class="setting-item">
+                        <span>Цифровой дождь</span>
+                        <button id="matrix-rain-btn" class="btn-toggle active">ВКЛ</button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Приватность</label>
+                    <div class="setting-item">
+                        <span>Показывать радио в профиле</span>
+                        <div class="toggle-wrapper">
+                            <input type="checkbox" id="privacy-radio-toggle" class="toggle-checkbox" checked>
+                            <label for="privacy-radio-toggle" class="toggle-label"></label>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Мини-плеер</label>
+                    <div class="setting-item">
+                        <span>Включить плавающий плеер</span>
+                        <div class="toggle-wrapper">
+                            <input type="checkbox" id="mini-player-enabled-toggle" class="toggle-checkbox" checked>
+                            <label for="mini-player-enabled-toggle" class="toggle-label"></label>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group"
+                    style="padding-top: 10px; border-top: 1px solid rgba(255, 255, 255, 0.05); margin-top: 5px;">
+                    <p style="font-size: 11px; color: var(--color-text-tertiary); margin-bottom: 8px;">Если иконка радио
+                        «зависла» и не исчезает:</p>
+                    <button id="reset-radio-status" class="btn"
+                        style="width: 100%; height: 38px; background: #ff3e3e; color: #fff; font-size: 13px; font-weight: 600; border-radius: 10px; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                            <path d="M3 3v5h5" />
+                        </svg>
+                        ФОРСИРОВАННЫЙ СБРОС (v365)
+                    </button>
+                </div>
+                <div class="form-group">
+                    <label>Тема оформления</label>
+                    <div class="theme-picker">
+                        <div class="theme-swatch theme-green active" data-theme="green" title="Зеленый"></div>
+                        <div class="theme-swatch theme-blue" data-theme="blue" title="Голубой"></div>
+                        <div class="theme-swatch theme-yellow" data-theme="yellow" title="Желтый"></div>
+                        <div class="theme-swatch theme-red" data-theme="red" title="Красный"></div>
+                        <div class="theme-swatch theme-white" data-theme="white" title="Белый"></div>
+                        <div class="theme-swatch theme-pink" data-theme="pink" title="Розовый"></div>
+                        <div class="theme-swatch theme-purple" data-theme="purple" title="Фиолетовый"></div>
+                    </div>
+                </div>
+                <!-- Security Section -->
+                <div class="form-group security-section">
+                    <label>Безопасность</label>
+                    <div class="setting-item">
+                        <span>Заблокировать приложение</span>
+                        <div class="toggle-wrapper">
+                            <input type="checkbox" id="app-lock-toggle" class="toggle-checkbox">
+                            <label for="app-lock-toggle" class="toggle-label"></label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Weather Settings -->
+                <div class="form-group weather-settings-section">
+                    <label>Погода</label>
+                    <div class="setting-item-column">
+                        <p style="font-size: 11px; color: var(--color-text-tertiary); margin-bottom: 12px;">
+                            Погода определяется автоматически по вашему местоположению. Если она не отображается,
+                            нажмите кнопку ниже:
+                        </p>
+                        <button id="request-location-btn" class="btn-primary"
+                            style="width: 100%; height: 38px; font-size: 13px;">
+                            <span>Запросить местоположение</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Radio Stations Section -->
+                <div class="form-group radio-settings-section">
+                    <label>Радиостанции</label>
+                    <div id="radio-stations-list" class="radio-stations-list">
+                        <!-- Stations will be listed here -->
+                        <p class="empty-text">Станции не добавлены</p>
+                    </div>
+                    <div class="add-station-form">
+                        <input type="text" id="new-station-name" placeholder="Название (например: Radio Record)">
+                        <input type="text" id="new-station-url" placeholder="URL потока (mp3/aac)">
+                        <input type="text" id="new-station-cover" placeholder="URL обложки (логотипа)">
+                        <button id="add-station-btn" class="btn-primary btn-sm">Добавить станцию</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-overlay" data-modal="app-settings-modal"></div>
+    </div>
+
+    <!-- Summary Modal -->
+    <div class="modal" id="summary-modal">
+        <div class="modal-content summary-content">
+            <div class="modal-header">
+                <h3>Сводка активности</h3>
+                <div class="header-widgets">
+                </div>
+                <button class="modal-close" data-modal="summary-modal">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body summary-grid">
+                <section class="summary-section time-section full-width">
+                    <div class="clock-widget">
+                        <div id="summary-time" class="time-main">00:00:00</div>
+                        <div id="summary-date" class="date-sub">Понедельник, 2 февраля 2026</div>
+                    </div>
+                </section>
+                <section class="summary-section weather-section full-width">
+                    <h4>Прогноз погоды</h4>
+                    <div id="summary-weather" class="weather-widget">
+                        <div class="weather-loading">Загрузка погоды...</div>
+                    </div>
+                </section>
+                <section class="summary-section unread-section">
+                    <h4>Непрочитанные</h4>
+                    <div id="summary-unread-list" class="summary-list">
+                        <p class="empty-text">Нет непрочитанных сообщений</p>
+                    </div>
+                </section>
+
+                <section class="summary-section recent-section">
+                    <h4>Недавняя активность</h4>
+                    <div id="summary-recent-list" class="summary-list">
+                        <p class="empty-text">Нет недавней активности</p>
+                    </div>
+                </section>
+
+                <section class="summary-section calendar-section">
+                    <div class="calendar-header">
+                        <button class="calendar-nav-btn" onclick="window.messenger.changeMonth(-1)">&lt;</button>
+                        <h4 id="calendar-month-year">Календарь</h4>
+                        <button class="calendar-nav-btn" onclick="window.messenger.changeMonth(1)">&gt;</button>
+                    </div>
+                    <div id="calendar-widget" class="calendar-container">
+                        <!-- Calendar grid will be generated here -->
+                    </div>
+                </section>
+
+                <section class="summary-section radio-player-section full-width">
+                    <div class="radio-player-remake">
+                        <div class="radio-hub-header">
+                            <h4>Выберите станцию</h4>
+                            <div id="radio-station-hub" class="radio-station-hub">
+                                <!-- Station icons will be rendered here -->
+                                <p class="empty-text">Станции не добавлены</p>
+                            </div>
+                        </div>
+
+                        <div class="radio-master-deck">
+                            <div class="deck-visualizer" id="radio-visualizer">
+                                <div class="visualizer-bar"></div>
+                                <div class="visualizer-bar"></div>
+                                <div class="visualizer-bar"></div>
+                                <div class="visualizer-bar"></div>
+                                <div class="visualizer-bar"></div>
+                            </div>
+
+                            <div class="deck-content">
+                                <div class="deck-art">
+                                    <img id="radio-current-cover" src="https://via.placeholder.com/64?text=Radio"
+                                        alt="Cover">
+                                    <div class="deck-status-indicator"></div>
+                                </div>
+                                <div class="deck-info">
+                                    <h4 id="radio-current-station">Радио не выбрано</h4>
+                                    <div class="track-marquee">
+                                        <p id="radio-current-track">Выберите станцию выше</p>
+                                    </div>
+                                    <div id="radio-stats-today" class="radio-stats-badge">Слушал сегодня: 0ч 0м</div>
+                                </div>
+                                <div class="deck-controls">
+                                    <button id="radio-share-btn" class="btn-deck-action" title="Поделиться станцией">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+                                            stroke="currentColor" stroke-width="2">
+                                            <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path>
+                                            <polyline points="16 6 12 2 8 6"></polyline>
+                                            <line x1="12" y1="2" x2="12" y2="15"></line>
+                                        </svg>
+                                    </button>
+                                    <button id="radio-play-btn" class="btn-deck-play" title="Play/Pause">
+                                        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                                            <path d="M8 5v14l11-7z" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="summary-section quote-section full-width">
+                    <div class="quote-container">
+                        <div class="quote-icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                                <path
+                                    d="M14.017 21L14.017 18C14.017 16.8954 14.9124 16 16.017 16H19.017C19.5693 16 20.017 15.5523 20.017 15V9C20.017 8.44772 19.5693 8 19.017 8H16.017C15.4647 8 15.017 8.44772 15.017 9V12C15.017 12.5523 14.5693 13 14.017 13H11.017V21H14.017ZM5.017 21L5.017 18C5.017 16.8954 5.91243 16 7.017 16H10.017C10.5693 16 11.017 15.5523 11.017 15V9C11.017 8.44772 10.5693 8 10.017 8H7.017C6.46472 8 6.017 8.44772 6.017 9V12C6.017 12.5523 5.56929 13 5.017 13H2.017V21H5.017Z" />
+                            </svg>
+                        </div>
+                        <p id="summary-quote-text" class="quote-text">Загрузка вдохновения...</p>
+                        <span id="summary-quote-author" class="quote-author"></span>
+                    </div>
+                </section>
+            </div>
+        </div>
+        <div class="modal-overlay" data-modal="summary-modal"></div>
+    </div>
+
+    <!-- Media Preview Modal -->
+    <div class="modal" id="media-preview-modal">
+        <div class="modal-content media-preview-content">
+            <div class="modal-header">
+                <h3 id="media-preview-title">Просмотр</h3>
+                <button class="modal-close" data-modal="media-preview-modal">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body media-preview-body">
+                <img id="media-preview-image" src="" alt="Preview">
+                <div id="media-preview-actions" class="media-preview-actions">
+                    <a id="media-preview-download" href="#" download class="btn-secondary btn-sm">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                            <polyline points="7 10 12 15 17 10" />
+                            <line x1="12" y1="15" x2="12" y2="3" />
+                        </svg>
+                        Скачать
+                    </a>
+                </div>
+            </div>
+        </div>
+        <div class="modal-overlay" data-modal="media-preview-modal"></div>
+    </div>
+
+    <!-- Invite User Modal -->
+    <div class="modal" id="invite-user-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Пригласить участника</h3>
+                <button class="modal-close" data-modal="invite-user-modal">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="invite-user-form">
+                    <div class="form-group">
+                        <label for="invite-username">Имя пользователя</label>
+                        <input type="text" id="invite-username" placeholder="@user:server" required>
+                        <p class="form-hint">Например: @ivan:type-c-kmr.duckdns.org</p>
+                    </div>
+                    <button type="submit" class="btn-primary">Пригласить</button>
+                </form>
+            </div>
+        </div>
+        <div class="modal-overlay" data-modal="invite-user-modal"></div>
+    </div>
+
+
+    <!-- Passcode Overlay -->
+    <div id="passcode-overlay" class="passcode-overlay hidden">
+        <div class="passcode-container">
+            <div class="passcode-header">
+                <h2 id="passcode-title">Введите PIN-код</h2>
+                <div class="passcode-dots">
+                    <div class="dot"></div>
+                    <div class="dot"></div>
+                    <div class="dot"></div>
+                    <div class="dot"></div>
+                </div>
+            </div>
+            <div class="passcode-keypad">
+                <button class="key-btn" data-key="1">1</button>
+                <button class="key-btn" data-key="2">2</button>
+                <button class="key-btn" data-key="3">3</button>
+                <button class="key-btn" data-key="4">4</button>
+                <button class="key-btn" data-key="5">5</button>
+                <button class="key-btn" data-key="6">6</button>
+                <button class="key-btn" data-key="7">7</button>
+                <button class="key-btn" data-key="8">8</button>
+                <button class="key-btn" data-key="9">9</button>
+                <button class="key-btn action" id="passcode-cancel">ОТМЕНА</button>
+                <button class="key-btn" data-key="0">0</button>
+                <button class="key-btn action" id="passcode-delete">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z" />
+                        <line x1="18" y1="9" x2="12" y2="15" />
+                        <line x1="12" y1="9" x2="18" y2="15" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js?v=425"></script>
+
+    <!-- Emergency Mini-Player Reset -->
+    <script>
+        // Force the mini-player to show if it was closed in a previous buggy version
+        if (localStorage.getItem('mini_player_closed') === 'true') {
+            console.log('[DEBUG] Clearing mini_player_closed flag for v295 migration');
+            localStorage.removeItem('mini_player_closed');
+        }
+    </script>
+
+    <!-- Matrix Rain Visual Effect Logic -->
+    <script>
+        // Matrix Rain - DISABLED on mobile, enabled on PC only
+        document.addEventListener('DOMContentLoaded', function () {
+            const isMobile = window.innerWidth < 768;
+            const canvas = document.getElementById('matrix-rain');
+
+            if (isMobile) {
+                console.log('[MATRIX] Mobile detected - DISABLED');
+                if (canvas) canvas.style.display = 'none';
+                return;
+            }
+
+            console.log('[MATRIX] PC detected - enabling');
+            localStorage.setItem('matrix_rain_enabled', 'true');
+            if (canvas) {
+                canvas.style.display = 'block';
+                canvas.style.opacity = '0.4';
+            }
+        });
+
+        (function () {
+            // SKIP ENTIRELY ON MOBILE
+            if (window.innerWidth < 768) {
+                console.log('[MATRIX] Mobile - script skipped');
+                return;
+            }
+
+            console.log('[MATRIX] Script starting (PC only)...');
+            const canvas = document.getElementById('matrix-rain');
+            if (!canvas) {
+                console.error("Matrix canvas not found!");
+                return;
+            }
+            const ctx = canvas.getContext('2d');
+
+            let width, height, columns;
+            let drops = [];
+
+            // Matrix Characters
+            const chars = '01ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ';
+
+            function resize() {
+                const isMobile = window.innerWidth < 768;
+                // Aggressive optimization: Render at 0.5x resolution on mobile
+                const textScale = isMobile ? 0.5 : 1;
+
+                // Force Canvas Size & Position - FIXED
+                Object.assign(canvas.style, {
+                    width: '100vw',
+                    height: '100vh',
+                    position: 'fixed',
+                    top: '0',
+                    left: '0',
+                    zIndex: isMobile ? '1' : '0',
+                    opacity: isMobile ? '0.6' : '0.4',
+                    pointerEvents: 'none',
+                    display: 'block'
+                });
+
+                // Set internal resolution
+                width = canvas.width = window.innerWidth * textScale;
+                height = canvas.height = window.innerHeight * textScale;
+
+                // Force CSS to stretch it back to full screen
+                canvas.style.width = '100vw';
+                canvas.style.height = '100vh';
+                canvas.style.position = 'fixed';
+                canvas.style.top = '0';
+                canvas.style.left = '0';
+
+                // On mobile (0.5x), 10px internal = 20px visual
+                const fontSize = isMobile ? 12 : 14;
+
+                columns = Math.floor(width / fontSize);
+                // Reset drops if columns changed drastically
+                if (drops.length !== columns) {
+                    drops = Array(columns).fill(1).map(() => Math.random() * -50);
+                }
+
+                ctx.font = '700 ' + fontSize + 'px "JetBrains Mono", monospace';
+            }
+
+            function getThemeColor() {
+                // FORCE BRIGHT GREEN ON MOBILE FOR VISIBILITY
+                if (window.innerWidth < 768) return '#00ff00';
+
+                const style = getComputedStyle(document.documentElement);
+                return style.getPropertyValue('--color-accent-green').trim() || '#00ffaa';
+            }
+
+            // FPS Control
+            let lastTime = 0;
+
+            function draw(currentTime) {
+                requestAnimationFrame(draw);
+
+                const isMobile = window.innerWidth < 768;
+                const fps = isMobile ? 20 : 30; // 20 FPS on mobile
+                const interval = 1000 / fps;
+
+                if (currentTime - lastTime < interval) return;
+                lastTime = currentTime - (currentTime % interval);
+
+                // Heavy trail fade for mobile to avoid overdraw (0.2 vs 0.05)
+                ctx.fillStyle = isMobile ? 'rgba(0, 0, 0, 0.15)' : 'rgba(0, 0, 0, 0.05)';
+                ctx.fillRect(0, 0, width, height);
+
+                const color = getThemeColor();
+                // Re-set font
+                const fontSize = isMobile ? 12 : 14;
+                ctx.font = '700 ' + fontSize + 'px "JetBrains Mono", monospace';
+
+                for (let i = 0; i < drops.length; i++) {
+                    // Mobile: skip 40% of columns randomly per frame
+                    if (isMobile && Math.random() > 0.6) continue;
+
+                    const text = chars[Math.floor(Math.random() * chars.length)];
+                    const x = i * fontSize;
+                    const y = drops[i] * fontSize;
+
+                    // Leading character
+                    ctx.fillStyle = '#fff';
+                    ctx.fillText(text, x, y);
+
+                    // Trail character
+                    if (!isMobile || Math.random() > 0.5) {
+                        ctx.fillStyle = color;
+                        ctx.fillText(text, x, y - fontSize);
+                    }
+
+                    // Reset
+                    if (y > height && Math.random() > 0.975) {
+                        drops[i] = 0;
+                    }
+                    drops[i]++;
+                }
+            }
+
+            window.addEventListener('resize', resize);
+            resize();
+            requestAnimationFrame(draw);
+        })();
+    </script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js')
+                .then(() => console.log('SW работает'))
+                .catch(err => console.log('SW ошибка', err));
+        }
+    </script>
+
+    <!-- Profile Modal (User info only) -->
+    <div id="profile-modal" class="modal">
+        <div class="modal-content profile-settings">
+            <div class="modal-header">
+                <h2 id="profile-modal-title">Настройки профиля</h2>
+                <div class="modal-header-actions" style="display: flex; gap: 10px; align-items: center;">
+                    <button class="btn-icon" id="refresh-profile-btn" title="Обновить данные"
+                        style="background: none; border: none; color: var(--color-accent-green); cursor: pointer; padding: 5px;">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M23 4v6h-6"></path>
+                            <path d="M1 20v-6h6"></path>
+                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                        </svg>
+                    </button>
+                    <button class="btn-close" id="close-profile-modal">&times;</button>
+                </div>
+            </div>
+            <div class="profile-avatar-setup">
+                <div class="avatar-large" id="profile-avatar-preview">
+                    <!-- Avatar image or initials -->
+                </div>
+                <input type="file" id="avatar-upload" hidden accept="image/*">
+                <button class="btn-secondary btn-sm" id="change-avatar-btn"
+                    onclick="document.getElementById('avatar-upload').click()">
+                    Изменить фото
+                </button>
+            </div>
+            <div class="form-group">
+                <label for="profile-display-name">Отображаемое имя</label>
+                <input type="text" id="profile-display-name" placeholder="Введите ваше имя">
+            </div>
+
+            <!-- Avatar Border Section (only visible if this is MY profile) -->
+            <div id="avatar-border-section" class="form-group" style="display:none;">
+                <label>Обводка аватара</label>
+                <div class="setting-item" style="margin-bottom:10px;">
+                    <span>Включить обводку</span>
+                    <div class="toggle-wrapper">
+                        <input type="checkbox" id="border-enabled-toggle" class="toggle-checkbox">
+                        <label for="border-enabled-toggle" class="toggle-label"></label>
+                    </div>
+                </div>
+                <div id="border-options" style="display:none; flex-direction:column; gap:10px;">
+                    <div style="display:flex; gap:10px; align-items:center;">
+                        <label style="font-size:12px; color:var(--color-text-secondary); flex-shrink:0;">Цвет:</label>
+                        <input type="color" id="border-color-picker" value="#00ffaa"
+                            style="width:48px; height:32px; border:none; background:none; cursor:pointer; border-radius:6px;">
+                        <div id="border-presets" style="display:flex; gap:6px; flex-wrap:wrap;">
+                            <div class="border-preset" data-color="#00ffaa" style="background:#00ffaa;"></div>
+                            <div class="border-preset" data-color="#00e0ff" style="background:#00e0ff;"></div>
+                            <div class="border-preset" data-color="#ff00ff" style="background:#ff00ff;"></div>
+                            <div class="border-preset" data-color="#ff3e3e" style="background:#ff3e3e;"></div>
+                            <div class="border-preset" data-color="#ffd700" style="background:#ffd700;"></div>
+                            <div class="border-preset" data-color="#ff6b35" style="background:#ff6b35;"></div>
+                            <div class="border-preset" data-color="#9b59b6" style="background:#9b59b6;"></div>
+                            <div class="border-preset" data-color="#ffffff" style="background:#ffffff;"></div>
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:10px; align-items:center;">
+                        <label
+                            style="font-size:12px; color:var(--color-text-secondary); flex-shrink:0;">Толщина:</label>
+                        <input type="range" id="border-width-slider" min="1" max="5" value="2"
+                            style="flex:1; accent-color:var(--color-accent-green);">
+                        <span id="border-width-label"
+                            style="font-size:12px; color:var(--color-accent-green); min-width:20px;">2px</span>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <label style="font-size:12px; color:var(--color-text-secondary);">Превью:</label>
+                        <div id="border-preview-avatar"
+                            style="width:40px; height:40px; border-radius:50%; background:var(--color-bg-tertiary); display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:700; color:var(--color-accent-green); transition:box-shadow 0.2s;">
+                            Вы</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Now Playing Section -->
+            <div id="profile-now-playing-container" class="profile-social-section hidden">
+                <label>Сейчас слушает</label>
+                <div id="profile-now-playing-card"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-primary" id="save-profile-btn">Сохранить</button>
+            </div>
+        </div>
+        <div class="modal-overlay" data-modal="profile-modal"></div>
+    </div>
+
+    <!-- Floating Mini-Player -->
+    <div id="radio-mini-player" class="radio-mini-player hidden">
+        <div class="mini-player-drag-handle"></div>
+        <div class="mini-player-content">
+            <div class="mini-player-avatar">
+                <img id="mini-player-cover" src="https://via.placeholder.com/40" alt="Cover">
+                <div class="mini-player-glow"></div>
+            </div>
+            <div class="mini-player-info">
+                <div id="mini-player-name" class="mini-player-name">Не играет</div>
+                <div id="mini-player-status" class="mini-player-status">В эфире</div>
+            </div>
+            <div class="mini-player-controls">
+                <button id="mini-player-play-btn" class="btn-mini-play">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M8 5v14l11-7z" />
+                    </svg>
+                </button>
+                <button id="mini-player-close" class="btn-mini-close">&times;</button>
+            </div>
+        </div>
+    </div>
+
+</body>
+
+</html>
