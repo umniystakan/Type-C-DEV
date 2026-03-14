@@ -1,4 +1,4 @@
-﻿/* ==========================================
+/* ==========================================
    Type-C Messenger - Dark Theme with Green Accents
    ========================================== */
 
@@ -3106,17 +3106,28 @@ h4 {
     letter-spacing: -0.2px;
 }
 
-/* Forecast Dashboard Premium Grid */
+/* Forecast Dashboard Premium Grid - Now Scrollable for 7 days */
 .weather-forecast-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 10px;
+    display: flex !important;
+    overflow-x: auto !important;
+    gap: 12px !important;
     margin-top: auto;
-    padding-top: 28px;
+    padding: 28px 4px 10px 4px !important;
     border-top: 1px solid rgba(255, 255, 255, 0.12);
+    /* Hide scrollbar but keep functionality */
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+}
+
+.weather-forecast-grid::-webkit-scrollbar {
+    display: none;
 }
 
 .forecast-item {
+    flex: 0 0 85px !important;
+    min-width: 85px !important;
     background: rgba(255, 255, 255, 0.03) !important;
     border: 1px solid rgba(255, 255, 255, 0.05) !important;
     border-radius: 22px !important;

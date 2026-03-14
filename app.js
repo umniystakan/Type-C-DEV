@@ -1,4 +1,4 @@
-﻿// Type-C Messenger - Matrix Protocol Integration
+// Type-C Messenger - Matrix Protocol Integration
 // ================================================
 
 class TypeCMessenger {
@@ -4691,7 +4691,7 @@ class TypeCMessenger {
             const { latitude, longitude } = position.coords;
             console.log(`[WEATHER] Location acquired: ${latitude}, ${longitude}`);
             // Added hourly precipitation_probability and current_weather windspeed
-            const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current_weather=true&hourly=precipitation_probability,relativehumidity_2m&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=3`;
+            const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current_weather=true&hourly=precipitation_probability,relativehumidity_2m&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=7`;
 
             try {
                 const response = await fetch(url);
@@ -4717,10 +4717,10 @@ class TypeCMessenger {
                         section.className = 'summary-section weather-section full-width ' + info.class;
                     }
 
-                    // Process Forecast (Today + Next 2)
+                    // Process Forecast (Today + Next 6)
                     let forecastHtml = '';
                     if (data.daily && data.daily.weathercode && data.daily.weathercode.length > 0) {
-                        for (let i = 0; i < 3; i++) {
+                        for (let i = 0; i < data.daily.weathercode.length; i++) {
                             const fCode = data.daily.weathercode[i];
                             const fMax = Math.round(data.daily.temperature_2m_max[i]);
                             const fMin = Math.round(data.daily.temperature_2m_min[i]);
